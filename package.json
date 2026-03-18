@@ -1,0 +1,48 @@
+{
+  "name": "cytoscape-canvas-underlay",
+  "version": "1.2.0",
+  "description": "Cytoscape.js plugin for rendering image/PDF canvas underlay behind graph nodes with synchronized zoom and pan",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "default": "./src/index.js"
+    }
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "cytoscape",
+    "cytoscape-extension",
+    "cytoscape-plugin",
+    "canvas",
+    "underlay",
+    "background",
+    "drawing",
+    "pdf",
+    "image",
+    "p&id",
+    "diagram"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "cytoscape": "^3.2.0",
+    "pdfjs-dist": "^4.0.0 || ^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "pdfjs-dist": {
+      "optional": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "homepage": ""
+}
