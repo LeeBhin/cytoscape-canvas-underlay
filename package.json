@@ -1,6 +1,6 @@
 {
   "name": "cytoscape-canvas-underlay",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Cytoscape.js plugin for rendering image/PDF canvas underlay behind graph nodes with synchronized zoom and pan",
   "main": "src/index.js",
   "module": "src/index.js",

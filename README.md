@@ -10,7 +10,7 @@ A [Cytoscape.js](https://js.cytoscape.org) plugin for rendering image/PDF backgr
 - **Adaptive PDF quality** — low-quality render during interaction, high-quality on idle
 - **Rich navigation** — `fit`, `fitAll`, `panToElement`, `panToRegion`, coordinate conversion
 - **Layer visibility** — independently show/hide drawing background and graph layer
-- **CSS filters** — brightness, contrast, saturate, grayscale, invert
+- **CSS filters** — invert, brightness, contrast, saturate, grayscale (invert applied first so brightness/contrast work correctly on inverted images)
 - **Rotation** — rotate main or additional drawings (0, 90, 180, 270 degrees)
 - **Event emitter** — `on`/`off`/`once` event system with legacy callback support
 - **Zero required dependencies** — only Cytoscape.js as peer dependency (`pdfjs-dist` optional for PDF)
@@ -444,7 +444,8 @@ These still work but the `on()`/`off()` event emitter is preferred.
 2. On every zoom/pan event, the canvas applies the same transform matrix as Cytoscape
 3. Drawing coordinates map 1:1 to Cytoscape world coordinates — place nodes at drawing positions directly
 4. Pan clamping: `'hard'` strictly prevents crossing the boundary. `'soft'` uses iOS-style rubber-band — drag freely to the boundary, then movement meets heavy logarithmic resistance; on release, spring-back animation returns to boundary (280ms cubic ease-out)
-5. For PDFs, a low-quality render is shown immediately, then a high-quality render follows after interaction stops
+5. CSS filters are applied in the order: `invert → brightness → contrast → saturate → grayscale`. Invert is applied first so that brightness/contrast adjustments affect the inverted result correctly
+6. For PDFs, a low-quality render is shown immediately, then a high-quality render follows after interaction stops
 6. Rotation is applied per-drawing around its center via canvas `translate`/`rotate` transforms
 7. Events fire through both the `on()`/`off()` emitter and legacy `onXxx` callbacks for backward compatibility
 8. Minimap uses DOM-based rendering (CSS `backgroundImage`) for crisp image quality. Two viewport styles: `'dim'` darkens outside viewport via `boxShadow`, `'rect'` highlights viewport with a bordered rectangle

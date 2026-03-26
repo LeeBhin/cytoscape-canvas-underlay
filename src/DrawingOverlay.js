@@ -181,11 +181,12 @@ async function renderPdfClipToState(state, clipRect, zoom, opts, signal) {
 
 function buildFilterString(opts) {
   const parts = [];
+  // invert를 먼저 적용해야 brightness/contrast가 반전 후 결과에 작용
+  if (opts.invert > 0) parts.push(`invert(${opts.invert})`);
   if (opts.brightness !== 1) parts.push(`brightness(${opts.brightness})`);
   if (opts.contrast !== 1) parts.push(`contrast(${opts.contrast})`);
   if (opts.saturate !== 1) parts.push(`saturate(${opts.saturate})`);
   if (opts.grayscale > 0) parts.push(`grayscale(${opts.grayscale})`);
-  if (opts.invert > 0) parts.push(`invert(${opts.invert})`);
   return parts.length ? parts.join(' ') : 'none';
 }
 
