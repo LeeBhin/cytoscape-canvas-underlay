@@ -469,7 +469,7 @@ export class DrawingOverlay {
 
   /** Animate spring-back to boundary on mouse release (fixed-duration ease-out). */
   _springBackIfNeeded() {
-    if (this._isUserDragging || this.opts.panClampMode !== 'soft') return;
+    if (this._isUserDragging || !this.opts.panClamp || this.opts.panClampMode !== 'soft') return;
     this._cancelSpringBack();
 
     const b = this._getPanBounds();

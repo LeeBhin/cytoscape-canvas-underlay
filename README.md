@@ -438,6 +438,12 @@ These still work but the `on()`/`off()` event emitter is preferred.
 | `visible` | `boolean` | `true` | Visibility |
 | `rotation` | `number` | `0` | Rotation in degrees (0, 90, 180, 270) |
 
+## Changelog
+
+### 1.2.3
+
+- **Fix**: `_springBackIfNeeded` now respects `panClamp: false`. Previously, setting `panClamp: false` at runtime disabled hard clamping but the soft spring-back animation on mouse release still fired, snapping the viewport back to drawing bounds. This made it impossible to programmatically disable pan clamping (e.g., during `panToElement` animations).
+
 ## How it works
 
 1. A `<canvas>` element is inserted behind Cytoscape's graph canvas
