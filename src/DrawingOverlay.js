@@ -207,6 +207,9 @@ export class DrawingOverlay {
     // Additional drawings
     this._drawings = new Map();
 
+    // PDF 존재 여부 캐시 (zoom/pan마다 순회 방지)
+    this._hasPdfCached = false;
+
     // RAF / debounce
     this._rafId = null;
     this._qualityTimer = null;
@@ -297,7 +300,7 @@ export class DrawingOverlay {
       if (this._minimap) this._minimap.render();
 
       // Schedule high-quality PDF re-render at current zoom level
-      const hasPdf = this._main.isPdf || [...this._drawings.values()].some(d => d.isPdf && d.visible);
+      const hasPdf = this._hasPdfCached;
       if (hasPdf) {
         if (this._qualityTimer) clearTimeout(this._qualityTimer);
         this._qualityTimer = setTimeout(() => {
@@ -649,6 +652,7 @@ export class DrawingOverlay {
       }
     }
     this._loading = false;
+    this._updateHasPdf();
 
     if (this.opts.fitOnLoad) this.fit();
     this._draw();
@@ -891,6 +895,16 @@ export class DrawingOverlay {
      Public API: Utility
      ═══════════════════════════════════════ */
 
+  /** PDF 존재 여부 캐시 갱신 */
+  _updateHasPdf() {
+    this._hasPdfCached = this._main.isPdf;
+    if (!this._hasPdfCached) {
+      for (const d of this._drawings.values()) {
+        if (d.isPdf && d.visible) { this._hasPdfCached = true; break; }
+      }
+    }
+  }
+
   /** Force redraw. */
   refresh() {
     this._setupCanvas();
@@ -1044,6 +1058,7 @@ export class DrawingOverlay {
     }
 
     this._drawings.set(id, state);
+    this._updateHasPdf();
     this._draw();
     this._emit('drawingAdd', id, { x: state.x, y: state.y, width: state.width, height: state.height });
   }
@@ -1059,6 +1074,7 @@ export class DrawingOverlay {
     const state = this._drawings.get(id);
     if (!state) return;
     state.visible = visible;
+    if (state.isPdf) this._updateHasPdf();
     this._draw();
   }
 
@@ -1069,12 +1085,14 @@ export class DrawingOverlay {
 
   removeDrawing(id) {
     this._drawings.delete(id);
+    this._updateHasPdf();
     this._draw();
     this._emit('drawingRemove', id);
   }
 
   clearDrawings() {
     this._drawings.clear();
+    this._updateHasPdf();
     this._draw();
   }
 
