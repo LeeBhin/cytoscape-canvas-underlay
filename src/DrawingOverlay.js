@@ -24,7 +24,7 @@ const DEFAULTS = {
   // ── Layout ──
   zIndex: 0,                 // Canvas z-index within overlay container
   fitOnLoad: true,           // Auto-fit drawing to viewport on load
-  fitPadding: 50,            // Padding (px) for fit operations
+  fitPadding: 0,             // Padding (px) for fit operations
 
   // ── Pan Clamping ──
   panClamp: false,           // Prevent panning too far from drawing bounds
@@ -293,7 +293,17 @@ export class DrawingOverlay {
   _bindEvents() {
     this._onViewport = () => {
       this._enforceLimits();
-      this._scheduleRedraw();
+      this._draw();
+      if (this._minimap) this._minimap.render();
+
+      // Schedule high-quality PDF re-render at current zoom level
+      const hasPdf = this._main.isPdf || [...this._drawings.values()].some(d => d.isPdf && d.visible);
+      if (hasPdf) {
+        if (this._qualityTimer) clearTimeout(this._qualityTimer);
+        this._qualityTimer = setTimeout(() => {
+          this._reRenderAllPdfs().then(() => this._draw());
+        }, this.opts.qualityDelay);
+      }
     };
     this._onResize = () => {
       this._setupCanvas();
@@ -711,22 +721,31 @@ export class DrawingOverlay {
      ═══════════════════════════════════════ */
 
   /** Fit the main drawing to viewport. */
-  fit(padding) {
+  fit({
+    animate = false,
+    padding = this.opts.fitPadding,
+    duration = 300,
+    easing = 'ease-in-out-cubic',
+  } = {}) {
     if (!this._main.w || !this._main.h) return;
-    const pad = padding ?? this.opts.fitPadding;
-    const container = this.cy.container().getBoundingClientRect();
-    const scaleX = (container.width - pad * 2) / this._main.w;
-    const scaleY = (container.height - pad * 2) / this._main.h;
-    const zoom = Math.max(this.cy.minZoom(), Math.min(this.cy.maxZoom(),Math.min(scaleX, scaleY)));
+    const cy = this.cy;
 
-    this.cy.zoom({
-      level: zoom,
-      renderedPosition: { x: container.width / 2, y: container.height / 2 },
-    });
-    this.cy.pan({
-      x: (container.width - this._main.w * zoom) / 2,
-      y: (container.height - this._main.h * zoom) / 2,
-    });
+    cy.resize();
+
+    const container = cy.container().getBoundingClientRect();
+    const cw = container.width - padding * 2;
+    const ch = container.height - padding * 2;
+    if (cw <= 0 || ch <= 0) return;
+
+    const scale = Math.min(cw / this._main.w, ch / this._main.h);
+    const panX = Math.round(padding + (cw - this._main.w * scale) / 2);
+    const panY = Math.round(padding + (ch - this._main.h * scale) / 2);
+
+    if (animate) {
+      cy.animate({ zoom: scale, pan: { x: panX, y: panY }, duration, easing });
+    } else {
+      cy.viewport({ zoom: scale, pan: { x: panX, y: panY } });
+    }
   }
 
   /** Fit a specific additional drawing to viewport. */
@@ -789,34 +808,6 @@ export class DrawingOverlay {
     this.cy.pan({
       x: container.width / 2 - x * z,
       y: container.height / 2 - y * z,
-    });
-  }
-
-  /** Pan to center a cytoscape element in viewport. */
-  panToElement(eleOrId, padding) {
-    const cy = this.cy;
-    const ele = typeof eleOrId === 'string' ? cy.getElementById(eleOrId) : eleOrId;
-    if (!ele || ele.empty?.()) return;
-
-    const bb = ele.boundingBox();
-    const pad = padding ?? this.opts.fitPadding;
-    const container = cy.container().getBoundingClientRect();
-
-    // Calculate zoom to fit element
-    const scaleX = (container.width - pad * 2) / bb.w;
-    const scaleY = (container.height - pad * 2) / bb.h;
-    const zoom = Math.max(this.cy.minZoom(), Math.min(this.cy.maxZoom(),Math.min(scaleX, scaleY)));
-
-    const cx = (bb.x1 + bb.x2) / 2;
-    const cy_ = (bb.y1 + bb.y2) / 2;
-
-    this.cy.zoom({
-      level: zoom,
-      renderedPosition: { x: container.width / 2, y: container.height / 2 },
-    });
-    this.cy.pan({
-      x: container.width / 2 - cx * zoom,
-      y: container.height / 2 - cy_ * zoom,
     });
   }
 

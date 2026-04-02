@@ -38,11 +38,10 @@ function register(cytoscape) {
       getRotation() { return overlay.getRotation(); },
 
       // ── Navigation ──
-      fit(padding) { overlay.fit(padding); },
+      fit(opts) { overlay.fit(opts); },
       fitToDrawing(id, padding) { overlay.fitToDrawing(id, padding); },
       fitAll(padding) { overlay.fitAll(padding); },
       panTo(x, y, zoom) { overlay.panTo(x, y, zoom); },
-      panToElement(eleOrId, padding) { overlay.panToElement(eleOrId, padding); },
       panToRegion(x, y, w, h, padding) { overlay.panToRegion(x, y, w, h, padding); },
 
       // ── Visibility ──

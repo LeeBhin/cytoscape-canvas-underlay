@@ -4,11 +4,11 @@ A [Cytoscape.js](https://js.cytoscape.org) plugin for rendering image/PDF backgr
 
 - **Image & PDF support** — load `.png`, `.jpg`, `.svg`, or `.pdf` as background
 - **Multiple drawings** — overlay additional drawings at arbitrary world positions
-- **Zoom/pan sync** — background transforms match Cytoscape's viewport exactly
+- **Zoom/pan sync** — synchronous redraw on every viewport event for zero-lag rendering
 - **Pan clamping** — hard boundary or iOS-style rubber-band with spring-back
 - **Minimap** — DOM-based crisp image rendering, two viewport styles (`dim` / `rect`), auto-hide, full customization
 - **Adaptive PDF quality** — low-quality render during interaction, high-quality on idle
-- **Rich navigation** — `fit`, `fitAll`, `panToElement`, `panToRegion`, coordinate conversion
+- **Rich navigation** — `fit`, `fitAll`, `panToRegion`, coordinate conversion
 - **Layer visibility** — independently show/hide drawing background and graph layer
 - **CSS filters** — invert, brightness, contrast, saturate, grayscale (invert applied first so brightness/contrast work correctly on inverted images)
 - **Rotation** — rotate main or additional drawings (0, 90, 180, 270 degrees)
@@ -147,13 +147,14 @@ api.off('zoom');               // remove all zoom handlers
 ### Navigation
 
 ```js
-api.fit();                              // fit main drawing
+api.fit();                              // fit main drawing (instant)
+api.fit({ animate: true });            // fit with animation (300ms)
+api.fit({ padding: 50 });             // fit with 50px padding
+api.fit({ animate: true, duration: 500, easing: 'ease-out' });
 api.fitToDrawing('trace-1');            // fit specific drawing
 api.fitAll();                           // fit all drawings
 api.panTo(500, 300);                    // center on world coordinate
 api.panTo(500, 300, 2.0);              // center + set zoom
-api.panToElement('node-id');            // center on cytoscape element
-api.panToElement(cy.$('#node-id'));     // also accepts element reference
 api.panToRegion(100, 100, 400, 300);   // fit a world-coordinate region
 ```
 
@@ -255,7 +256,7 @@ const inside = api.isPointInDrawing(world.x, world.y);
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `fitOnLoad` | `boolean` | `true` | Auto-fit drawing to viewport on load |
-| `fitPadding` | `number` | `50` | Default padding for fit operations (px) |
+| `fitPadding` | `number` | `0` | Default padding for fit operations (px) |
 
 ### Pan Clamping
 
@@ -368,11 +369,10 @@ These still work but the `on()`/`off()` event emitter is preferred.
 
 | Method | Description |
 |--------|-------------|
-| `fit(padding?)` | Fit main drawing to viewport |
+| `fit(opts?)` | Fit main drawing to viewport. Options: `{ animate, padding, duration, easing }` |
 | `fitToDrawing(id, padding?)` | Fit a specific additional drawing to viewport |
 | `fitAll(padding?)` | Fit all drawings (main + additional) to viewport |
 | `panTo(x, y, zoom?)` | Center viewport on world coordinate, optionally set zoom |
-| `panToElement(eleOrId, padding?)` | Fit a cytoscape element in viewport (accepts ID string or element) |
 | `panToRegion(x, y, w, h, padding?)` | Fit a world-coordinate region in viewport |
 
 ### Visibility
@@ -439,6 +439,14 @@ These still work but the `on()`/`off()` event emitter is preferred.
 | `rotation` | `number` | `0` | Rotation in degrees (0, 90, 180, 270) |
 
 ## Changelog
+
+### 1.3.0
+
+- **Breaking**: `fit()` now accepts an options object instead of a padding number: `fit({ animate, padding, duration, easing })`. Calling `fit()` with no arguments still works (uses defaults).
+- **Breaking**: Removed `panToElement()` — use application-level implementation for element navigation with custom zoom/animation logic.
+- **Changed**: Default `fitPadding` changed from `50` to `0`.
+- **Added**: `fit()` now supports `animate` option with configurable `duration` (default 300ms) and `easing` (default `ease-in-out-cubic`).
+- **Added**: `fit()` now calls `cy.resize()` before calculating dimensions.
 
 ### 1.2.3
 
