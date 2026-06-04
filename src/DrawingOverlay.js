@@ -35,6 +35,12 @@ const DEFAULTS = {
   drawingVisible: true,      // Show/hide the background drawing
   graphVisible: true,        // Show/hide the cytoscape graph layer
 
+  // ── Interaction Quality ──
+  // pan/zoom 중 큰 도면을 다운스케일 프록시 + 저품질 스무딩으로 그려 끊김을 줄인다(멈추면 풀해상도 복원).
+  // 큰 배경 이미지에서 pan/zoom 이 끊길 때 true 로 사용.
+  lowQualityOnInteraction: false, // pan/zoom 중 저품질 렌더 사용 여부
+  interactionProxyMax: 2560,      // 프록시 최대 변(px). 이보다 큰 소스만 축소.
+
   // ── PDF Quality ──
   qualityDelay: 100,         // ms delay before high-quality PDF re-render
   pdfMinRenderSize: 2048,    // Minimum PDF render dimension (px)
@@ -215,6 +221,10 @@ export class DrawingOverlay {
     this._qualityTimer = null;
     this._abortController = null;
 
+    // pan/zoom 중 저품질 렌더 플래그 + 멈춤 감지 타이머
+    this._interacting = false;
+    this._interactTimer = null;
+
     // Pan clamping re-entry guard
     this._isPanAdjusting = false;
 
@@ -296,17 +306,17 @@ export class DrawingOverlay {
   _bindEvents() {
     this._onViewport = () => {
       this._enforceLimits();
-      this._draw();
-      if (this._minimap) this._minimap.render();
 
-      // Schedule high-quality PDF re-render at current zoom level
-      const hasPdf = this._hasPdfCached;
-      if (hasPdf) {
-        if (this._qualityTimer) clearTimeout(this._qualityTimer);
-        this._qualityTimer = setTimeout(() => {
-          this._reRenderAllPdfs().then(() => this._draw());
-        }, this.opts.qualityDelay);
-      }
+      // pan/zoom 중에는 저품질로 그리고, 멈추면 idle 후 고품질로 한 번 더 그린다.
+      this._interacting = true;
+      if (this._interactTimer) clearTimeout(this._interactTimer);
+      this._interactTimer = setTimeout(() => {
+        this._interacting = false;
+        this._scheduleRedraw();
+      }, 120);
+
+      // 매 이벤트 동기 _draw() 대신 프레임당 1회로 코얼레싱(_scheduleRedraw 가 PDF 고품질 재렌더도 예약).
+      this._scheduleRedraw();
     };
     this._onResize = () => {
       this._setupCanvas();
@@ -343,6 +353,7 @@ export class DrawingOverlay {
     this._cancelSpringBack();
     if (this._rafId) cancelAnimationFrame(this._rafId);
     if (this._qualityTimer) clearTimeout(this._qualityTimer);
+    if (this._interactTimer) clearTimeout(this._interactTimer);
     if (this._abortController) this._abortController.abort();
 
     // Remove rubber-band drag listeners
@@ -1164,6 +1175,73 @@ export class DrawingOverlay {
     }
   }
 
+  /**
+   * 필터(invert/brightness/contrast/...)를 적용한 소스를 반환.
+   * 매 프레임 ctx.filter 로 큰 도면을 필터링하면 매우 느리므로, 소스(이미지/PDF캔버스)를
+   * 오프스크린 캔버스에 한 번만 구워두고 필터 문자열/소스가 바뀔 때만 재생성한다.
+   * 필터가 없으면(none) 원본 소스를 그대로 반환.
+   */
+  _filtered(holder, source, filterStr) {
+    if (!filterStr || filterStr === 'none') return source;
+    const w = source.naturalWidth || source.width;
+    const h = source.naturalHeight || source.height;
+    if (!w || !h) return source;
+
+    const cache = holder._filteredCache;
+    if (cache && cache.src === source && cache.filter === filterStr && cache.w === w && cache.h === h) {
+      return cache.canvas;
+    }
+
+    const canvas = (cache && cache.canvas) || document.createElement('canvas');
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+    const cx = canvas.getContext('2d');
+    cx.clearRect(0, 0, w, h);
+    cx.filter = filterStr;
+    cx.imageSmoothingEnabled = true;
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(source, 0, 0, w, h);
+    cx.filter = 'none';
+
+    holder._filteredCache = { src: source, filter: filterStr, w, h, canvas };
+    return canvas;
+  }
+
+  /**
+   * 큰 소스(예: 10000×7074 도면)를 매 프레임 통째로 drawImage 하면 pan/zoom 이 끊긴다.
+   * → 최대 변(PROXY_MAX) 으로 축소한 캔버스를 캐시해 인터랙션 중에만 사용. 소스가 작으면 원본 그대로.
+   */
+  _proxy(holder, src) {
+    const PROXY_MAX = this.opts.interactionProxyMax || 2560;
+    const sw = src.naturalWidth || src.width;
+    const sh = src.naturalHeight || src.height;
+    if (!sw || !sh || (sw <= PROXY_MAX && sh <= PROXY_MAX)) return src;
+
+    const scale = PROXY_MAX / Math.max(sw, sh);
+    const pw = Math.max(1, Math.round(sw * scale));
+    const ph = Math.max(1, Math.round(sh * scale));
+
+    const cache = holder._proxyCache;
+    if (cache && cache.src === src && cache.w === pw && cache.h === ph) return cache.canvas;
+
+    const canvas = (cache && cache.canvas) || document.createElement('canvas');
+    canvas.width = pw; canvas.height = ph;
+    const cx = canvas.getContext('2d');
+    cx.clearRect(0, 0, pw, ph);
+    cx.imageSmoothingEnabled = true;
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(src, 0, 0, pw, ph);
+
+    holder._proxyCache = { src, w: pw, h: ph, canvas };
+    return canvas;
+  }
+
+  /** _draw 가 사용할 소스: 필터 적용본. 옵션 켜진 경우 인터랙션 중에는 축소 프록시로 대체(멈추면 풀해상도). */
+  _displaySource(holder, source, filterStr) {
+    const full = this._filtered(holder, source, filterStr);
+    return (this._interacting && this.opts.lowQualityOnInteraction) ? this._proxy(holder, full) : full;
+  }
+
   /** Draw an image/canvas with optional rotation around its center. */
   _drawRotated(ctx, source, x, y, w, h, rotation) {
     if (!rotation) {
@@ -1203,9 +1281,10 @@ export class DrawingOverlay {
     const hasAdditional = this._drawings.size > 0;
     if (!hasMain && !hasAdditional) return;
 
-    // High-quality image smoothing
+    // Image smoothing — 옵션 켜진 경우에만 pan/zoom 중 'low', 그 외엔 'high'.
+    const lowQ = this._interacting && this.opts.lowQualityOnInteraction;
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = lowQ ? 'low' : 'high';
 
     // Apply cytoscape transform
     ctx.setTransform(
@@ -1215,18 +1294,18 @@ export class DrawingOverlay {
       Math.round(pan.y * dpr)
     );
 
-    // CSS filters
-    ctx.filter = buildFilterString(this.opts);
+    // CSS 필터는 매 프레임 ctx.filter 로 적용하지 않고, 미리 구워둔 캔버스(_filtered)를 사용.
+    const filterStr = buildFilterString(this.opts);
 
     // Draw main source
     if (hasMain) {
       ctx.globalAlpha = this.opts.opacity;
       const mainRot = this.opts.rotation || 0;
       if (this._main.img) {
-        this._drawRotated(ctx, this._main.img, 0, 0, this._main.w, this._main.h, mainRot);
+        this._drawRotated(ctx, this._displaySource(this._main, this._main.img, filterStr), 0, 0, this._main.w, this._main.h, mainRot);
       } else if (this._main.pdfCanvas && this._main.pdfClip) {
         const c = this._main.pdfClip;
-        this._drawRotated(ctx, this._main.pdfCanvas, c.x, c.y, c.w, c.h, mainRot);
+        this._drawRotated(ctx, this._displaySource(this._main, this._main.pdfCanvas, filterStr), c.x, c.y, c.w, c.h, mainRot);
       }
     }
 
@@ -1236,15 +1315,14 @@ export class DrawingOverlay {
       ctx.globalAlpha = state.opacity * this.opts.opacity;
       const rot = state.rotation || 0;
       if (state.img) {
-        this._drawRotated(ctx, state.img, state.x, state.y, state.width, state.height, rot);
+        this._drawRotated(ctx, this._displaySource(state, state.img, filterStr), state.x, state.y, state.width, state.height, rot);
       } else if (state.pdfCanvas && state.pdfClip) {
         const c = state.pdfClip;
-        this._drawRotated(ctx, state.pdfCanvas, state.x + c.x, state.y + c.y, c.w, c.h, rot);
+        this._drawRotated(ctx, this._displaySource(state, state.pdfCanvas, filterStr), state.x + c.x, state.y + c.y, c.w, c.h, rot);
       }
     }
 
     // Reset
     ctx.globalAlpha = 1;
-    ctx.filter = 'none';
   }
 }

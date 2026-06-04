@@ -4,7 +4,8 @@ A [Cytoscape.js](https://js.cytoscape.org) plugin for rendering image/PDF backgr
 
 - **Image & PDF support** — load `.png`, `.jpg`, `.svg`, or `.pdf` as background
 - **Multiple drawings** — overlay additional drawings at arbitrary world positions
-- **Zoom/pan sync** — synchronous redraw on every viewport event for zero-lag rendering
+- **Zoom/pan sync** — viewport-synced redraw, coalesced to one draw per frame (requestAnimationFrame) for smooth pan/zoom
+- **Large-image performance** — optional downscaled proxy during pan/zoom for huge backgrounds, full resolution on idle (`lowQualityOnInteraction`); CSS filters are pre-baked once instead of per frame
 - **Pan clamping** — hard boundary or iOS-style rubber-band with spring-back
 - **Minimap** — DOM-based crisp image rendering, two viewport styles (`dim` / `rect`), auto-hide, full customization
 - **Adaptive PDF quality** — low-quality render during interaction, high-quality on idle
@@ -272,6 +273,15 @@ const inside = api.isPointInDrawing(world.x, world.y);
 |--------|------|---------|-------------|
 | `drawingVisible` | `boolean` | `true` | Initial drawing visibility |
 | `graphVisible` | `boolean` | `true` | Initial graph layer visibility |
+
+### Interaction Quality
+
+For very large drawings (e.g. tens of megapixels), redrawing the full-resolution image on every pan/zoom frame can cause stutter. Enable `lowQualityOnInteraction` to draw a downscaled proxy during interaction and restore full resolution once it settles.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `lowQualityOnInteraction` | `boolean` | `false` | Draw a downscaled proxy + lower image smoothing during pan/zoom, restoring full quality when interaction stops. Recommended for large background images. |
+| `interactionProxyMax` | `number` | `2560` | Max edge (px) of the downscaled proxy used while interacting. Only sources larger than this are downscaled. |
 
 ### PDF Quality
 

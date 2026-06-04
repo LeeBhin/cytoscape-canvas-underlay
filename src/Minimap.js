@@ -183,7 +183,27 @@ export class Minimap {
 
     if (main.img && main.img.src) {
       if (this._lastImgSrc !== main.img.src) {
-        this._imgDiv.style.backgroundImage = `url(${main.img.src})`;
+        // 큰 원본(예: 70MP 도면)을 CSS 배경으로 통째로 디코드하면 메모리·디코드 비용이 큼.
+        // → 작은 썸네일 1장으로 축소해 사용(미니맵 화질엔 충분).
+        let bg = main.img.src;
+        try {
+          const THUMB_MAX = 256;
+          const iw = main.img.naturalWidth || main.w;
+          const ih = main.img.naturalHeight || main.h;
+          const s = Math.min(1, THUMB_MAX / Math.max(iw, ih));
+          if (s < 1) {
+            const tw = Math.max(1, Math.round(iw * s));
+            const th = Math.max(1, Math.round(ih * s));
+            const c = document.createElement('canvas');
+            c.width = tw; c.height = th;
+            const cx = c.getContext('2d');
+            cx.imageSmoothingEnabled = true;
+            cx.imageSmoothingQuality = 'high';
+            cx.drawImage(main.img, 0, 0, tw, th);
+            bg = c.toDataURL('image/png');
+          }
+        } catch (_) { /* cross-origin tainted 등 → 원본 src 폴백 */ }
+        this._imgDiv.style.backgroundImage = `url(${bg})`;
         this._lastImgSrc = main.img.src;
         if (this._blobUrl) { URL.revokeObjectURL(this._blobUrl); this._blobUrl = null; }
       }
