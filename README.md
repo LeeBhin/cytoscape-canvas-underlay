@@ -1,4 +1,4 @@
-# cytoscape-canvas-underlay
+# @leebhin/cytoscape-canvas-underlay
 
 A [Cytoscape.js](https://js.cytoscape.org) plugin for rendering image/PDF backgrounds behind graph nodes with synchronized zoom and pan.
 
@@ -19,7 +19,7 @@ A [Cytoscape.js](https://js.cytoscape.org) plugin for rendering image/PDF backgr
 ## Installation
 
 ```bash
-npm install cytoscape-canvas-underlay
+npm install @leebhin/cytoscape-canvas-underlay
 ```
 
 For PDF support:
@@ -32,7 +32,7 @@ npm install pdfjs-dist
 
 ```js
 import cytoscape from 'cytoscape';
-import canvasUnderlay from 'cytoscape-canvas-underlay';
+import canvasUnderlay from '@leebhin/cytoscape-canvas-underlay';
 
 cytoscape.use(canvasUnderlay);
 
@@ -57,7 +57,7 @@ const api = cy.canvasUnderlay({
 
 ```js
 import * as pdfjsLib from 'pdfjs-dist';
-import { setPdfjs } from 'cytoscape-canvas-underlay';
+import { setPdfjs } from '@leebhin/cytoscape-canvas-underlay';
 
 setPdfjs(pdfjsLib);
 
