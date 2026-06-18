@@ -1,5 +1,5 @@
 {
-  "name": "@leebhin/cytoscape-canvas-underlay",
+  "name": "cytoscape-canvas-underlay",
   "version": "1.4.1",
   "publishConfig": {
     "access": "public"

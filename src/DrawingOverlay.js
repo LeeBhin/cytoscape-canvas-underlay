@@ -500,8 +500,9 @@ export class DrawingOverlay {
     if (!b) return;
 
     const pan = this.cy.pan();
-    const targetX = b.minX <= b.maxX ? Math.max(b.minX, Math.min(b.maxX, pan.x)) : pan.x;
-    const targetY = b.minY <= b.maxY ? Math.max(b.minY, Math.min(b.maxY, pan.y)) : pan.y;
+    // Normalize bounds so an inverted axis is still sprung back to within view.
+    const targetX = Math.max(Math.min(b.minX, b.maxX), Math.min(Math.max(b.minX, b.maxX), pan.x));
+    const targetY = Math.max(Math.min(b.minY, b.maxY), Math.min(Math.max(b.minY, b.maxY), pan.y));
 
     const dx = targetX - pan.x;
     const dy = targetY - pan.y;
@@ -549,22 +550,29 @@ export class DrawingOverlay {
     let clampedX = pan.x;
     let clampedY = pan.y;
 
+    // Normalize bounds so an inverted axis (drawing narrower than viewport on that axis)
+    // is still clamped — previously such an axis was left unclamped (pan drifted off-screen).
+    const loX = Math.min(b.minX, b.maxX);
+    const hiX = Math.max(b.minX, b.maxX);
+    const loY = Math.min(b.minY, b.maxY);
+    const hiY = Math.max(b.minY, b.maxY);
+
     if (this.opts.panClampMode === 'hard' || (this.opts.panClampMode === 'soft' && !this._isUserDragging)) {
       // Hard clamp — also used in soft mode when not dragging (spring-back handles animation)
-      if (b.minX <= b.maxX) clampedX = Math.max(b.minX, Math.min(b.maxX, pan.x));
-      if (b.minY <= b.maxY) clampedY = Math.max(b.minY, Math.min(b.maxY, pan.y));
+      clampedX = Math.max(loX, Math.min(hiX, pan.x));
+      clampedY = Math.max(loY, Math.min(hiY, pan.y));
     } else {
       // Soft + dragging: iOS rubber-band with debt tracking
       const maxOvershoot = 80;
 
-      if (b.minX <= b.maxX) {
+      {
         const realX = pan.x + this._rubberBandDebtX;
         let overflowX = 0;
-        if (realX < b.minX) overflowX = realX - b.minX;
-        else if (realX > b.maxX) overflowX = realX - b.maxX;
+        if (realX < loX) overflowX = realX - loX;
+        else if (realX > hiX) overflowX = realX - hiX;
 
         if (overflowX !== 0) {
-          const boundary = overflowX < 0 ? b.minX : b.maxX;
+          const boundary = overflowX < 0 ? loX : hiX;
           clampedX = boundary + this._rubberBandValue(overflowX, maxOvershoot);
           this._rubberBandDebtX = realX - clampedX;
         } else {
@@ -573,14 +581,14 @@ export class DrawingOverlay {
         }
       }
 
-      if (b.minY <= b.maxY) {
+      {
         const realY = pan.y + this._rubberBandDebtY;
         let overflowY = 0;
-        if (realY < b.minY) overflowY = realY - b.minY;
-        else if (realY > b.maxY) overflowY = realY - b.maxY;
+        if (realY < loY) overflowY = realY - loY;
+        else if (realY > hiY) overflowY = realY - hiY;
 
         if (overflowY !== 0) {
-          const boundary = overflowY < 0 ? b.minY : b.maxY;
+          const boundary = overflowY < 0 ? loY : hiY;
           clampedY = boundary + this._rubberBandValue(overflowY, maxOvershoot);
           this._rubberBandDebtY = realY - clampedY;
         } else {
